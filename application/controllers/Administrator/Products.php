@@ -275,6 +275,7 @@ class Products extends CI_Controller {
                 (select ifnull(sum(prd.PurchaseReturnDetails_ReturnQuantity), 0) 
                         from tbl_purchasereturndetails prd 
                         where prd.PurchaseReturnDetailsProduct_SlNo = p.Product_SlNo
+                        and prd.Status = 'a'
                         and prd.PurchaseReturnDetails_brachid = '$branchId') as purchase_returned_quantity,
                         
                 (select ifnull(sum(sd.SaleDetails_TotalQuantity), 0) 
@@ -286,12 +287,14 @@ class Products extends CI_Controller {
                 (select ifnull(sum(srd.SaleReturnDetails_ReturnQuantity), 0)
                         from tbl_salereturndetails srd 
                         where srd.SaleReturnDetailsProduct_SlNo = p.Product_SlNo
+                        and srd.Status = 'a'
                         and srd.SaleReturnDetails_brunchID = '$branchId') as sales_returned_quantity,
                         
                 (select ifnull(sum(dmd.DamageDetails_DamageQuantity), 0) 
                         from tbl_damagedetails dmd
                         join tbl_damage dm on dm.Damage_SlNo = dmd.Damage_SlNo
                         where dmd.Product_SlNo = p.Product_SlNo
+                        and dmd.status = 'a'
                         and dm.Damage_brunchid = '$branchId') as damaged_quantity,
             
                 (select ifnull(sum(trd.quantity), 0)
@@ -308,7 +311,8 @@ class Products extends CI_Controller {
                 
                 (select ifnull(sum(pp.quantity), 0)
                         from tbl_production_products pp
-                        where pp.product_id = p.Product_SlNo) as production_quantity,
+                        where pp.product_id = p.Product_SlNo
+                        and pp.status = 'a') as production_quantity,
                         
                 (select (purchased_quantity + sales_returned_quantity + transferred_to_quantity + production_quantity) - (sold_quantity + purchase_returned_quantity + damaged_quantity + transferred_from_quantity)) as current_quantity,
                 (select p.Product_Purchase_Rate * current_quantity) as stock_value
@@ -677,7 +681,7 @@ class Products extends CI_Controller {
                 pp.quantity as in_quantity,
                 0 as out_quantity    
             from tbl_production_products pp
-            join tbl_productions p on p.production_id = pp.production_id
+            left join tbl_productions p on p.production_id = pp.production_id
             where p.status = 'a'
             and pp.product_id = " . $data->productId . "
 
@@ -691,8 +695,8 @@ class Products extends CI_Controller {
                 pd.PurchaseDetails_TotalQuantity as in_quantity,
                 0 as out_quantity
             from tbl_purchasedetails pd
-            join tbl_purchasemaster pm on pm.PurchaseMaster_SlNo = pd.PurchaseMaster_IDNo
-            join tbl_supplier s on s.Supplier_SlNo = pm.Supplier_SlNo
+            left join tbl_purchasemaster pm on pm.PurchaseMaster_SlNo = pd.PurchaseMaster_IDNo
+            left join tbl_supplier s on s.Supplier_SlNo = pm.Supplier_SlNo
             where pd.Status = 'a'
             and pd.Product_IDNo = " . $data->productId . "
             and pd.PurchaseDetails_branchID = " . $this->brunch . "
@@ -707,8 +711,8 @@ class Products extends CI_Controller {
                 0 as in_quantity,
                 sd.SaleDetails_TotalQuantity as out_quantity
             from tbl_saledetails sd
-            join tbl_salesmaster sm on sm.SaleMaster_SlNo = sd.SaleMaster_IDNo
-            join tbl_customer c on c.Customer_SlNo = sm.SalseCustomer_IDNo
+            left join tbl_salesmaster sm on sm.SaleMaster_SlNo = sd.SaleMaster_IDNo
+            left join tbl_customer c on c.Customer_SlNo = sm.SalseCustomer_IDNo
             where sd.Status = 'a'
             and sd.Product_IDNo = " . $data->productId . "
             and sd.SaleDetails_BranchId = " . $this->brunch . "
@@ -723,8 +727,8 @@ class Products extends CI_Controller {
                 0 as in_quantity,
                 prd.PurchaseReturnDetails_ReturnQuantity as out_quantity
             from tbl_purchasereturndetails prd
-            join tbl_purchasereturn pr on pr.PurchaseReturn_SlNo = prd.PurchaseReturn_SlNo
-            join tbl_supplier s on s.Supplier_SlNo = pr.Supplier_IDdNo
+            left join tbl_purchasereturn pr on pr.PurchaseReturn_SlNo = prd.PurchaseReturn_SlNo
+            left join tbl_supplier s on s.Supplier_SlNo = pr.Supplier_IDdNo
             where prd.Status = 'a'
             and prd.PurchaseReturnDetailsProduct_SlNo = " . $data->productId . "
             and prd.PurchaseReturnDetails_brachid = " . $this->brunch . "
@@ -734,14 +738,14 @@ class Products extends CI_Controller {
                 'e' as sequence, 
                 srd.SaleReturnDetails_SlNo as id,
                 sr.SaleReturn_ReturnDate as date,
-                concat('Sale Return - ', sr.SaleMaster_InvoiceNo, ' - ', c.Customer_Name) as description,
+                concat('Sale Return - ', sr.SaleMaster_InvoiceNo, ' - ', ifnull(c.Customer_Name, 'No Sales')) as description,
                 (srd.SaleReturnDetails_ReturnAmount / srd.SaleReturnDetails_ReturnQuantity) as rate,
                 srd.SaleReturnDetails_ReturnQuantity as in_quantity,
                 0 as out_quantity
             from tbl_salereturndetails srd
-            join tbl_salereturn sr on sr.SaleReturn_SlNo = srd.SaleReturn_IdNo
-            join tbl_salesmaster sm on sm.SaleMaster_InvoiceNo = sr.SaleMaster_InvoiceNo
-            join tbl_customer c on c.Customer_SlNo = sm.SalseCustomer_IDNo
+            left join tbl_salereturn sr on sr.SaleReturn_SlNo = srd.SaleReturn_IdNo
+            left join tbl_salesmaster sm on sm.SaleMaster_InvoiceNo = sr.SaleMaster_InvoiceNo
+            left join tbl_customer c on c.Customer_SlNo = sm.SalseCustomer_IDNo
             where srd.Status = 'a'
             and srd.SaleReturnDetailsProduct_SlNo = " . $data->productId . "
             and srd.SaleReturnDetails_brunchID = " . $this->brunch . "
@@ -756,8 +760,8 @@ class Products extends CI_Controller {
                 trd.quantity as in_quantity,
                 0 as out_quantity
             from tbl_transferdetails trd
-            join tbl_transfermaster tm on tm.transfer_id = trd.transfer_id
-            join tbl_brunch b on b.brunch_id = tm.transfer_from
+            left join tbl_transfermaster tm on tm.transfer_id = trd.transfer_id
+            left join tbl_brunch b on b.brunch_id = tm.transfer_from
             where trd.product_id = " . $data->productId . "
             and tm.transfer_to = " . $this->brunch . "
             
@@ -771,8 +775,8 @@ class Products extends CI_Controller {
                 0 as in_quantity,
                 trd.quantity as out_quantity
             from tbl_transferdetails trd
-            join tbl_transfermaster tm on tm.transfer_id = trd.transfer_id
-            join tbl_brunch b on b.brunch_id = tm.transfer_to
+            left join tbl_transfermaster tm on tm.transfer_id = trd.transfer_id
+            left join tbl_brunch b on b.brunch_id = tm.transfer_to
             where trd.product_id = " . $data->productId . "
             and tm.transfer_from = " . $this->brunch . "
             
@@ -786,7 +790,7 @@ class Products extends CI_Controller {
                 0 as in_quantity,
                 dmd.DamageDetails_DamageQuantity as out_quantity
             from tbl_damagedetails dmd
-            join tbl_damage d on d.Damage_SlNo = dmd.Damage_SlNo
+            left join tbl_damage d on d.Damage_SlNo = dmd.Damage_SlNo
             where dmd.Product_SlNo = " . $data->productId . "
             and d.Damage_brunchid = " . $this->brunch . "
 
